@@ -1,9 +1,12 @@
 "use client";
 
-import { formatDistance } from "@/lib/distance";
+import ResultsSheet, {
+  DEFAULT_RADIUS,
+  type SheetSnap,
+} from "@/components/ResultsSheet";
 import type { WaterApiResponse, WaterSpot } from "@/lib/types";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const WaterMap = dynamic(() => import("@/components/WaterMap"), {
   ssr: false,
@@ -14,8 +17,7 @@ const WaterMap = dynamic(() => import("@/components/WaterMap"), {
   ),
 });
 
-const RADIUS_STEPS = [1500, 3000, 5000, 10000] as const;
-const MIAMI_CENTER = { lat: 25.7617, lon: -80.1918 };
+const MIAMI_CENTER = { latitude: 25.7617, longitude: -80.1918 };
 
 type Status =
   | { kind: "idle" }
@@ -25,28 +27,17 @@ type Status =
   | { kind: "error"; message: string }
   | { kind: "denied" };
 
-function mapsLink(lat: number, lon: number): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-}
-
-function nextRadius(current: number): number | null {
-  const idx = RADIUS_STEPS.indexOf(current as (typeof RADIUS_STEPS)[number]);
-  if (idx === -1) {
-    const larger = RADIUS_STEPS.find((r) => r > current);
-    return larger ?? null;
-  }
-  return RADIUS_STEPS[idx + 1] ?? null;
-}
-
 export default function FindWaterApp() {
-  const [center, setCenter] = useState<{ lat: number; lon: number } | null>(
-    null,
-  );
-  const [radius, setRadius] = useState<number>(RADIUS_STEPS[0]);
+  const [center, setCenter] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [radius, setRadius] = useState<number>(DEFAULT_RADIUS);
   const [spots, setSpots] = useState<WaterSpot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>("mid");
+  const radiusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const selected = useMemo(
     () => spots.find((s) => s.id === selectedId) ?? null,
@@ -54,12 +45,12 @@ export default function FindWaterApp() {
   );
 
   const fetchWater = useCallback(
-    async (lat: number, lon: number, searchRadius: number) => {
+    async (latitude: number, longitude: number, searchRadius: number) => {
       setStatus({ kind: "loading" });
       setSelectedId(null);
       try {
         const res = await fetch(
-          `/api/water?lat=${lat}&lon=${lon}&radius=${searchRadius}`,
+          `/api/water?latitude=${latitude}&longitude=${longitude}&radius=${searchRadius}`,
         );
         const data = (await res.json()) as WaterApiResponse & { error?: string };
         if (!res.ok) {
@@ -96,12 +87,12 @@ export default function FindWaterApp() {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const next = {
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
+          latitude: pos.coords.latitude,
+          longitude: pos.coords.longitude,
         };
         setCenter(next);
-        setRadius(RADIUS_STEPS[0]);
-        void fetchWater(next.lat, next.lon, RADIUS_STEPS[0]);
+        setRadius(DEFAULT_RADIUS);
+        void fetchWater(next.latitude, next.longitude, DEFAULT_RADIUS);
       },
       (err) => {
         if (err.code === err.PERMISSION_DENIED) {
@@ -118,27 +109,40 @@ export default function FindWaterApp() {
   }, [fetchWater]);
 
   useEffect(() => {
-    locate();
+    // Defer so geolocation setState is not synchronous inside the effect body.
+    const timer = window.setTimeout(() => locate(), 0);
+    return () => window.clearTimeout(timer);
   }, [locate]);
 
-  const onMapClick = (lat: number, lon: number) => {
-    setCenter({ lat, lon });
-    setRadius(RADIUS_STEPS[0]);
-    void fetchWater(lat, lon, RADIUS_STEPS[0]);
+  useEffect(() => {
+    return () => {
+      if (radiusDebounceRef.current) clearTimeout(radiusDebounceRef.current);
+    };
+  }, []);
+
+  const onMapClick = (latitude: number, longitude: number) => {
+    setCenter({ latitude, longitude });
+    setRadius(DEFAULT_RADIUS);
+    void fetchWater(latitude, longitude, DEFAULT_RADIUS);
   };
 
   const useMiami = () => {
     setCenter(MIAMI_CENTER);
-    setRadius(RADIUS_STEPS[0]);
-    void fetchWater(MIAMI_CENTER.lat, MIAMI_CENTER.lon, RADIUS_STEPS[0]);
+    setRadius(DEFAULT_RADIUS);
+    void fetchWater(
+      MIAMI_CENTER.latitude,
+      MIAMI_CENTER.longitude,
+      DEFAULT_RADIUS,
+    );
   };
 
-  const expandRadius = () => {
+  const onRadiusChange = (nextRadius: number) => {
+    setRadius(nextRadius);
     if (!center) return;
-    const larger = nextRadius(radius);
-    if (larger == null) return;
-    setRadius(larger);
-    void fetchWater(center.lat, center.lon, larger);
+    if (radiusDebounceRef.current) clearTimeout(radiusDebounceRef.current);
+    radiusDebounceRef.current = setTimeout(() => {
+      void fetchWater(center.latitude, center.longitude, nextRadius);
+    }, 250);
   };
 
   const refresh = () => {
@@ -146,15 +150,27 @@ export default function FindWaterApp() {
       locate();
       return;
     }
-    void fetchWater(center.lat, center.lon, radius);
+    void fetchWater(center.latitude, center.longitude, radius);
   };
 
   const mapCenter: [number, number] = center
-    ? [center.lat, center.lon]
-    : [MIAMI_CENTER.lat, MIAMI_CENTER.lon];
+    ? [center.latitude, center.longitude]
+    : [MIAMI_CENTER.latitude, MIAMI_CENTER.longitude];
 
-  const largerRadius = nextRadius(radius);
   const isBusy = status.kind === "locating" || status.kind === "loading";
+
+  const summary =
+    status.kind === "ready" && spots.length === 0
+      ? "No free water mapped nearby"
+      : `${spots.length} spot${spots.length === 1 ? "" : "s"} within ${(radius / 1000).toFixed(radius % 1000 === 0 ? 0 : 1)} km`;
+
+  const subtitle =
+    status.kind === "ready" && spots.length === 0
+      ? "OSM coverage varies — empty does not always mean no water."
+      : null;
+
+  const errorMessage =
+    status.kind === "error" && center ? status.message : null;
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden">
@@ -195,7 +211,7 @@ export default function FindWaterApp() {
           selectedId={selectedId}
           onSelect={(id) => {
             setSelectedId(id);
-            setSheetOpen(true);
+            setSheetSnap("mid");
           }}
           onMapClick={onMapClick}
         />
@@ -241,101 +257,27 @@ export default function FindWaterApp() {
         )}
       </div>
 
-      <section
-        className={`absolute inset-x-0 bottom-0 z-[1000] transition-transform duration-300 ease-out ${
-          sheetOpen ? "translate-y-0" : "translate-y-[calc(100%-3.5rem)]"
-        }`}
-      >
-        <div className="mx-auto max-w-lg rounded-t-3xl border border-[var(--line)] bg-[var(--panel)] shadow-[0_-8px_40px_rgba(15,60,70,0.12)]">
-          <button
-            type="button"
-            aria-label={sheetOpen ? "Collapse list" : "Expand list"}
-            onClick={() => setSheetOpen((v) => !v)}
-            className="flex w-full flex-col items-center pt-3 pb-2"
-          >
-            <span className="h-1.5 w-10 rounded-full bg-[var(--line)]" />
-          </button>
+      <ResultsSheet
+        spots={spots}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        radius={radius}
+        onRadiusChange={onRadiusChange}
+        radiusDisabled={isBusy || !center}
+        summary={summary}
+        subtitle={subtitle}
+        errorMessage={errorMessage}
+        snap={sheetSnap}
+        onSnapChange={setSheetSnap}
+      />
 
-          <div className="flex items-center justify-between gap-3 px-4 pb-3">
-            <div>
-              <p className="text-sm font-medium text-[var(--ink)]">
-                {status.kind === "ready" && spots.length === 0
-                  ? "No free water mapped nearby"
-                  : `${spots.length} spot${spots.length === 1 ? "" : "s"} within ${(radius / 1000).toFixed(1)} km`}
-              </p>
-              {status.kind === "ready" && spots.length === 0 && (
-                <p className="mt-0.5 text-xs text-[var(--muted)]">
-                  OSM coverage varies — empty does not always mean no water.
-                </p>
-              )}
-              {status.kind === "error" && center && (
-                <p className="mt-0.5 text-xs text-red-700">{status.message}</p>
-              )}
-            </div>
-            {largerRadius != null && (
-              <button
-                type="button"
-                onClick={expandRadius}
-                disabled={isBusy}
-                className="shrink-0 rounded-full border border-[var(--brand)] px-3 py-1.5 text-xs font-medium text-[var(--brand-deep)] disabled:opacity-60"
-              >
-                Expand to {(largerRadius / 1000).toFixed(1)} km
-              </button>
-            )}
-          </div>
-
-          <ul className="max-h-[42vh] space-y-2 overflow-y-auto px-4 pb-4">
-            {spots.map((spot) => {
-              const active = spot.id === selectedId;
-              return (
-                <li key={spot.id}>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedId(spot.id)}
-                    className={`w-full rounded-2xl border px-3 py-3 text-left transition ${
-                      active
-                        ? "border-[var(--brand)] bg-[var(--brand-soft)]"
-                        : "border-[var(--line)] bg-white hover:border-[var(--brand)]/40"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium text-[var(--ink)]">
-                          {spot.name ?? spot.type}
-                        </p>
-                        <p className="text-xs text-[var(--muted)]">
-                          {spot.name ? spot.type : "OpenStreetMap point"}
-                        </p>
-                      </div>
-                      <span className="shrink-0 text-sm font-medium text-[var(--brand-deep)]">
-                        {formatDistance(spot.distanceMeters)}
-                      </span>
-                    </div>
-                    {active && (
-                      <a
-                        href={mapsLink(spot.lat, spot.lon)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="mt-2 inline-flex text-sm font-medium text-[var(--brand)] underline-offset-2 hover:underline"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        Open in maps
-                      </a>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {selected && (
-            <p className="sr-only">
-              Selected {selected.name ?? selected.type},{" "}
-              {formatDistance(selected.distanceMeters)} away
-            </p>
-          )}
-        </div>
-      </section>
+      {selected && (
+        <p className="sr-only">
+          Selected {selected.displayName}
+          {selected.locationHint ? `, ${selected.locationHint}` : ""},{" "}
+          {selected.distanceMeters} m away
+        </p>
+      )}
     </div>
   );
 }

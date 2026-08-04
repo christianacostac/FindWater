@@ -21,9 +21,17 @@ FindWater does not maintain its own fountain database for the MVP. It queries OS
 - `man_made=drinking_fountain`
 - `amenity=fountain` + `drinking_water=yes`
 
-API: `GET /api/water?lat=…&lon=…&radius=1500`
+API: `GET /api/water?latitude=…&longitude=…&radius=2000`
 
-Results are sorted by walking distance (haversine).
+Results are sorted by walking distance (haversine). Unnamed spots get a **location hint** when possible (nearby named road or park from OSM), e.g. “Near Brickell Ave” or “In Bayfront Park”.
+
+## Search radius
+
+Use the stepped slider in the bottom sheet to choose **1 / 2 / 5 / 10 km** (default **2 km**). Sliding left shrinks the search; sliding right expands it. There are no fractional stops between those values.
+
+## Results sheet
+
+Drag the bottom sheet handle up or down to snap between peek and mid (~45% of the screen). When there are many spots, scroll the list inside the sheet. Tap a map marker to open the sheet to mid.
 
 ## Coverage caveat
 

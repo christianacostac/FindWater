@@ -2,7 +2,7 @@ import { fetchNearbyWater } from "@/lib/overpass";
 import type { WaterApiError, WaterApiResponse } from "@/lib/types";
 import { NextRequest, NextResponse } from "next/server";
 
-const DEFAULT_RADIUS = 1500;
+const DEFAULT_RADIUS = 2000;
 const MIN_RADIUS = 200;
 const MAX_RADIUS = 10000;
 
@@ -14,20 +14,26 @@ function parseNumber(value: string | null): number | null {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
-  const lat = parseNumber(searchParams.get("lat"));
-  const lon = parseNumber(searchParams.get("lon"));
+  const latitude = parseNumber(searchParams.get("latitude"));
+  const longitude = parseNumber(searchParams.get("longitude"));
   const radiusParam = parseNumber(searchParams.get("radius"));
 
-  if (lat == null || lon == null) {
+  if (latitude == null || longitude == null) {
     const body: WaterApiError = {
-      error: "Query params lat and lon are required.",
+      error: "Query params latitude and longitude are required.",
     };
     return NextResponse.json(body, { status: 400 });
   }
 
-  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+  if (
+    latitude < -90 ||
+    latitude > 90 ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
     const body: WaterApiError = {
-      error: "lat must be between -90 and 90; lon between -180 and 180.",
+      error:
+        "latitude must be between -90 and 90; longitude between -180 and 180.",
     };
     return NextResponse.json(body, { status: 400 });
   }
@@ -39,17 +45,26 @@ export async function GET(request: NextRequest) {
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 28_000);
+    // Water-only budget; location hints use a separate short timeout.
+    const timeout = setTimeout(() => controller.abort(), 22_000);
 
-    const spots = await fetchNearbyWater(lat, lon, radius, controller.signal);
-    clearTimeout(timeout);
+    try {
+      const spots = await fetchNearbyWater(
+        latitude,
+        longitude,
+        radius,
+        controller.signal,
+      );
 
-    const body: WaterApiResponse = {
-      spots,
-      radius,
-      center: { lat, lon },
-    };
-    return NextResponse.json(body);
+      const body: WaterApiResponse = {
+        spots,
+        radius,
+        center: { latitude, longitude },
+      };
+      return NextResponse.json(body);
+    } finally {
+      clearTimeout(timeout);
+    }
   } catch (err) {
     const message =
       err instanceof Error && err.name === "AbortError"

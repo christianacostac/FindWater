@@ -68,3 +68,82 @@ body {
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.35);
 }
+
+.fw-radius-slider {
+  appearance: none;
+  height: 1.75rem;
+  background: transparent;
+  cursor: pointer;
+}
+
+.fw-radius-slider:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.fw-radius-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--brand-soft),
+    var(--line)
+  );
+}
+
+.fw-radius-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: var(--brand);
+  box-shadow: 0 2px 8px rgba(15, 60, 70, 0.25);
+}
+
+.fw-radius-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--brand-soft),
+    var(--line)
+  );
+}
+
+.fw-radius-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid #fff;
+  background: var(--brand);
+  box-shadow: 0 2px 8px rgba(15, 60, 70, 0.25);
+}
+
+.fw-spot-list {
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--brand) transparent;
+}
+
+.fw-spot-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.fw-spot-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fw-spot-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.fw-spot-list::-webkit-scrollbar-thumb:hover {
+  background: var(--brand);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}

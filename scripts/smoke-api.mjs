@@ -9,16 +9,16 @@ async function hit(label, url) {
   console.log(label, "count", data.spots.length, "radius", data.radius);
   for (const spot of data.spots.slice(0, 5)) {
     console.log(
-      `  ${spot.distanceMeters}m | ${spot.type} | ${spot.name ?? "(unnamed)"}`,
+      `  ${spot.distanceMeters}m | ${spot.displayName} | ${spot.locationHint ?? spot.type}`,
     );
   }
 }
 
 await hit(
   "Miami",
-  "http://localhost:3000/api/water?lat=25.7617&lon=-80.1918&radius=3000",
+  "http://localhost:3000/api/water?latitude=25.7617&longitude=-80.1918&radius=3000",
 );
 await hit(
   "Amsterdam",
-  "http://localhost:3000/api/water?lat=52.3676&lon=4.9041&radius=1500",
+  "http://localhost:3000/api/water?latitude=52.3676&longitude=4.9041&radius=1500",
 );

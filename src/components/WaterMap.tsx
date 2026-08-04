@@ -47,7 +47,7 @@ function MapController({
     if (!selectedId) return;
     const spot = spots.find((s) => s.id === selectedId);
     if (!spot) return;
-    map.flyTo([spot.lat, spot.lon], Math.max(map.getZoom(), 16), {
+    map.flyTo([spot.latitude, spot.longitude], Math.max(map.getZoom(), 16), {
       duration: 0.6,
     });
   }, [selectedId, spots, map]);
@@ -58,7 +58,7 @@ function MapController({
 function MapClickHandler({
   onMapClick,
 }: {
-  onMapClick: (lat: number, lon: number) => void;
+  onMapClick: (latitude: number, longitude: number) => void;
 }) {
   useMapEvents({
     click(e) {
@@ -74,7 +74,7 @@ type WaterMapProps = {
   spots: WaterSpot[];
   selectedId: string | null;
   onSelect: (id: string) => void;
-  onMapClick: (lat: number, lon: number) => void;
+  onMapClick: (latitude: number, longitude: number) => void;
 };
 
 export default function WaterMap({
@@ -115,15 +115,21 @@ export default function WaterMap({
       {spots.map((spot) => (
         <Marker
           key={spot.id}
-          position={[spot.lat, spot.lon]}
+          position={[spot.latitude, spot.longitude]}
           icon={waterIcon}
           eventHandlers={{
             click: () => onSelect(spot.id),
           }}
         >
           <Popup>
-            <strong>{spot.name ?? spot.type}</strong>
+            <strong>{spot.displayName}</strong>
             <br />
+            {spot.locationHint ? (
+              <>
+                {spot.locationHint}
+                <br />
+              </>
+            ) : null}
             {spot.distanceMeters} m away
           </Popup>
         </Marker>
