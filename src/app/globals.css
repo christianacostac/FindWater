@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --background: #e8f4f2;
+  --foreground: #0f2f35;
+  --ink: #0f2f35;
+  --muted: #4d6b72;
+  --brand: #0f8a7a;
+  --brand-deep: #0b6b5f;
+  --brand-soft: #d8f3ee;
+  --panel: #f7fcfb;
+  --line: #c5ddd8;
+  --map-wash: #d5ebe7;
+  --shadow: 0 10px 30px rgba(15, 60, 70, 0.12);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-manrope);
+}
+
+body {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, #b8e6df 0%, transparent 55%),
+    radial-gradient(900px 500px at 100% 0%, #9fd4e0 0%, transparent 50%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+}
+
+.leaflet-container {
+  font: inherit;
+  background: var(--map-wash);
+}
+
+.fw-user-marker,
+.fw-water-marker {
+  background: transparent;
+  border: none;
+}
+
+.fw-user-dot {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #2563eb;
+  border: 3px solid #fff;
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.22);
+}
+
+.fw-water-pin {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: linear-gradient(145deg, #14b8a6, #0f766e);
+  border: 2px solid #fff;
+  box-shadow: 0 4px 10px rgba(15, 60, 70, 0.25);
+}
+
+.fw-water-pin::after {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.35);
+}
