@@ -21,9 +21,12 @@ FindWater does not maintain its own fountain database for the MVP. It queries OS
 - `man_made=drinking_fountain`
 - `amenity=fountain` + `drinking_water=yes`
 
-API: `GET /api/water?latitude=…&longitude=…&radius=2000`
+API:
 
-Results are sorted by walking distance (haversine). Unnamed spots get a **location hint** when possible (nearby named road or park from OSM), e.g. “Near Brickell Ave” or “In Bayfront Park”.
+- `GET /api/water?latitude=…&longitude=…&radius=2000` — nearby water spots (single Overpass query)
+- `GET /api/water/hint?latitude=…&longitude=…` — “Near …” / “In …” hint for one spot (loaded when you select it)
+
+Results are sorted by straight-line distance (haversine). Spots with OSM address tags show that immediately. Road/park hints (e.g. “Near Brickell Ave” or “In Bayfront Park”) load on select so the main search stays fast.
 
 ## Search radius
 

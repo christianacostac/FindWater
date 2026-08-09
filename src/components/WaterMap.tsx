@@ -73,6 +73,7 @@ type WaterMapProps = {
   radius: number;
   spots: WaterSpot[];
   selectedId: string | null;
+  hintLoadingId?: string | null;
   onSelect: (id: string) => void;
   onMapClick: (latitude: number, longitude: number) => void;
 };
@@ -82,6 +83,7 @@ export default function WaterMap({
   radius,
   spots,
   selectedId,
+  hintLoadingId = null,
   onSelect,
   onMapClick,
 }: WaterMapProps) {
@@ -124,7 +126,12 @@ export default function WaterMap({
           <Popup>
             <strong>{spot.displayName}</strong>
             <br />
-            {spot.locationHint ? (
+            {hintLoadingId === spot.id ? (
+              <>
+                Finding nearby…
+                <br />
+              </>
+            ) : spot.locationHint ? (
               <>
                 {spot.locationHint}
                 <br />
