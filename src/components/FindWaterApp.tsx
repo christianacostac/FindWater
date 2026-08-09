@@ -122,8 +122,7 @@ export default function FindWaterApp() {
 
   const onMapClick = (latitude: number, longitude: number) => {
     setCenter({ latitude, longitude });
-    setRadius(DEFAULT_RADIUS);
-    void fetchWater(latitude, longitude, DEFAULT_RADIUS);
+    void fetchWater(latitude, longitude, radius);
   };
 
   const useMiami = () => {
