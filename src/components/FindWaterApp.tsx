@@ -4,7 +4,11 @@ import ResultsSheet, {
   DEFAULT_RADIUS,
   type SheetSnap,
 } from "@/components/ResultsSheet";
-import type { WaterApiResponse, WaterSpot } from "@/lib/types";
+import type {
+  WaterApiResponse,
+  WaterHintResponse,
+  WaterSpot,
+} from "@/lib/types";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -35,9 +39,12 @@ export default function FindWaterApp() {
   const [radius, setRadius] = useState<number>(DEFAULT_RADIUS);
   const [spots, setSpots] = useState<WaterSpot[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hintLoadingId, setHintLoadingId] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>("mid");
   const radiusDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hintResolvedRef = useRef(new Set<string>());
+  const hintAbortRef = useRef<AbortController | null>(null);
 
   const selected = useMemo(
     () => spots.find((s) => s.id === selectedId) ?? null,
@@ -48,6 +55,9 @@ export default function FindWaterApp() {
     async (latitude: number, longitude: number, searchRadius: number) => {
       setStatus({ kind: "loading" });
       setSelectedId(null);
+      setHintLoadingId(null);
+      hintResolvedRef.current = new Set();
+      hintAbortRef.current?.abort();
       try {
         const res = await fetch(
           `/api/water?latitude=${latitude}&longitude=${longitude}&radius=${searchRadius}`,
@@ -117,8 +127,63 @@ export default function FindWaterApp() {
   useEffect(() => {
     return () => {
       if (radiusDebounceRef.current) clearTimeout(radiusDebounceRef.current);
+      hintAbortRef.current?.abort();
     };
   }, []);
+
+  // Road/park "Near …" hints load only for the selected spot.
+  useEffect(() => {
+    if (!selected) return;
+
+    // Address tags already on the water element — no extra request.
+    if (selected.locationHint) {
+      hintResolvedRef.current.add(selected.id);
+      return;
+    }
+    if (hintResolvedRef.current.has(selected.id)) return;
+
+    const spotId = selected.id;
+    const { latitude, longitude } = selected;
+    const controller = new AbortController();
+    hintAbortRef.current?.abort();
+    hintAbortRef.current = controller;
+    setHintLoadingId(spotId);
+
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/water/hint?latitude=${latitude}&longitude=${longitude}`,
+          { signal: controller.signal },
+        );
+        const data = (await res.json()) as WaterHintResponse & {
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(data.error ?? "Could not load location hint.");
+        }
+        hintResolvedRef.current.add(spotId);
+        if (data.locationHint) {
+          setSpots((prev) =>
+            prev.map((s) =>
+              s.id === spotId ? { ...s, locationHint: data.locationHint } : s,
+            ),
+          );
+        }
+      } catch {
+        if (controller.signal.aborted) return;
+        // Soft-fail: keep showing the spot type; mark resolved so we don't loop.
+        hintResolvedRef.current.add(spotId);
+      } finally {
+        if (!controller.signal.aborted) {
+          setHintLoadingId((current) => (current === spotId ? null : current));
+        }
+      }
+    })();
+
+    return () => {
+      controller.abort();
+    };
+  }, [selected]);
 
   const onMapClick = (latitude: number, longitude: number) => {
     setCenter({ latitude, longitude });
@@ -171,6 +236,10 @@ export default function FindWaterApp() {
   const errorMessage =
     status.kind === "error" && center ? status.message : null;
 
+  const selectSpot = (id: string) => {
+    setSelectedId(id);
+  };
+
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden">
       <header className="absolute inset-x-0 top-0 z-[1000] flex items-start justify-between gap-3 p-4 pointer-events-none">
@@ -208,8 +277,9 @@ export default function FindWaterApp() {
           radius={radius}
           spots={spots}
           selectedId={selectedId}
+          hintLoadingId={hintLoadingId}
           onSelect={(id) => {
-            setSelectedId(id);
+            selectSpot(id);
             setSheetSnap("mid");
           }}
           onMapClick={onMapClick}
@@ -259,7 +329,8 @@ export default function FindWaterApp() {
       <ResultsSheet
         spots={spots}
         selectedId={selectedId}
-        onSelect={setSelectedId}
+        hintLoadingId={hintLoadingId}
+        onSelect={selectSpot}
         radius={radius}
         onRadiusChange={onRadiusChange}
         radiusDisabled={isBusy || !center}

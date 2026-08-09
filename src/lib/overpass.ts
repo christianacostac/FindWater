@@ -3,9 +3,9 @@ import type { WaterSpot } from "./types";
 
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const CONTEXT_MATCH_METERS = 80;
-/** Context enrichment stays small so it cannot blow the request budget. */
-const CONTEXT_RADIUS_CAP_M = 600;
-const CONTEXT_TIMEOUT_MS = 8_000;
+/** Small around-query for a single selected spot — cheaper than search-wide enrichment. */
+const HINT_QUERY_RADIUS_M = 120;
+const HINT_TIMEOUT_MS = 6_000;
 const ENDPOINT_TIMEOUT_MS = 12_000;
 
 /** Raw Overpass JSON shape — OSM uses `lat` / `lon` field names. */
@@ -53,14 +53,10 @@ out body center;
 `.trim();
 }
 
-function buildContextQuery(
-  latitude: number,
-  longitude: number,
-  radius: number,
-): string {
-  const r = Math.min(radius, CONTEXT_RADIUS_CAP_M);
+function buildHintQuery(latitude: number, longitude: number): string {
+  const r = HINT_QUERY_RADIUS_M;
   return `
-[out:json][timeout:8];
+[out:json][timeout:6];
 (
   way(around:${r},${latitude},${longitude})["highway"~"^(primary|secondary|tertiary|residential|unclassified|living_street|pedestrian|footway)$"]["name"];
   node(around:${r},${latitude},${longitude})["leisure"~"^(park|playground)$"]["name"];
@@ -86,7 +82,10 @@ function buildDisplayName(
   return type;
 }
 
-function addressHint(tags: Record<string, string>): string | null {
+/** Free hint from tags already on the water element — no extra Overpass call. */
+export function addressHintFromTags(
+  tags: Record<string, string>,
+): string | null {
   const street = tags["addr:street"]?.trim();
   if (!street) return null;
   const number = tags["addr:housenumber"]?.trim();
@@ -167,7 +166,6 @@ export function normalizeOverpassElements(
   elements: OverpassElement[],
   centerLatitude: number,
   centerLongitude: number,
-  contextFeatures: NamedFeature[] = [],
 ): WaterSpot[] {
   const seen = new Set<string>();
   const spots: WaterSpot[] = [];
@@ -183,9 +181,6 @@ export function normalizeOverpassElements(
     const tags = element.tags ?? {};
     const type = spotType(tags);
     const displayName = buildDisplayName(tags, type);
-    const locationHint =
-      addressHint(tags) ??
-      nearestHint(coords.latitude, coords.longitude, contextFeatures);
 
     spots.push({
       id,
@@ -203,7 +198,8 @@ export function normalizeOverpassElements(
         ),
       ),
       displayName,
-      locationHint,
+      // Address tags only here; road/park hints load on select.
+      locationHint: addressHintFromTags(tags),
     });
   }
 
@@ -236,7 +232,7 @@ async function postOverpass(
           "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8",
           Accept: "application/json",
           "User-Agent":
-            "FindWater/0.1 (https://github.com/local/findwater; free drinking water finder)",
+            "FindWater/0.1 (https://github.com/christianacostac/FindWater; free drinking water finder)",
         },
         body,
         signal: endpointController.signal,
@@ -264,24 +260,29 @@ async function postOverpass(
   throw lastError ?? new Error("Overpass request failed");
 }
 
-/** Best-effort only — never fails the water response. */
-async function fetchContextFeatures(
+/**
+ * Nearby named road/park for one spot. Used on-demand when the user selects
+ * a result — keeps the main water search to a single Overpass round trip.
+ */
+export async function fetchLocationHint(
   latitude: number,
   longitude: number,
-  radius: number,
-): Promise<NamedFeature[]> {
+  signal?: AbortSignal,
+): Promise<string | null> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), CONTEXT_TIMEOUT_MS);
+  const onParentAbort = () => controller.abort();
+  signal?.addEventListener("abort", onParentAbort, { once: true });
+  const timer = setTimeout(() => controller.abort(), HINT_TIMEOUT_MS);
+
   try {
     const elements = await postOverpass(
-      buildContextQuery(latitude, longitude, radius),
+      buildHintQuery(latitude, longitude),
       controller.signal,
     );
-    return parseNamedFeatures(elements);
-  } catch {
-    return [];
+    return nearestHint(latitude, longitude, parseNamedFeatures(elements));
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", onParentAbort);
   }
 }
 
@@ -296,17 +297,5 @@ export async function fetchNearbyWater(
     signal,
   );
 
-  // Enrichment is optional and uses its own short timeout so it cannot
-  // turn a successful water search into a timeout error.
-  const contextFeatures =
-    waterElements.length > 0
-      ? await fetchContextFeatures(latitude, longitude, radius)
-      : [];
-
-  return normalizeOverpassElements(
-    waterElements,
-    latitude,
-    longitude,
-    contextFeatures,
-  );
+  return normalizeOverpassElements(waterElements, latitude, longitude);
 }

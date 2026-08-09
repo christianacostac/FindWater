@@ -18,6 +18,11 @@ export type WaterApiResponse = {
   center: { latitude: number; longitude: number };
 };
 
+export type WaterHintResponse = {
+  locationHint: string | null;
+  center: { latitude: number; longitude: number };
+};
+
 export type WaterApiError = {
   error: string;
 };

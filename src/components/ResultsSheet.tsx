@@ -19,6 +19,7 @@ export type SheetSnap = "peek" | "mid";
 type ResultsSheetProps = {
   spots: WaterSpot[];
   selectedId: string | null;
+  hintLoadingId?: string | null;
   onSelect: (id: string) => void;
   radius: number;
   onRadiusChange: (radius: number) => void;
@@ -58,6 +59,7 @@ function snapHeights(viewportHeight: number, peekHeight: number) {
 export default function ResultsSheet({
   spots,
   selectedId,
+  hintLoadingId = null,
   onSelect,
   radius,
   onRadiusChange,
@@ -280,7 +282,9 @@ export default function ResultsSheet({
                         {spot.displayName}
                       </p>
                       <p className="text-xs text-[var(--muted)]">
-                        {spot.locationHint ?? spot.type}
+                        {active && hintLoadingId === spot.id
+                          ? "Finding nearby…"
+                          : (spot.locationHint ?? spot.type)}
                       </p>
                     </div>
                     <span className="shrink-0 text-sm font-medium text-[var(--brand-deep)]">
