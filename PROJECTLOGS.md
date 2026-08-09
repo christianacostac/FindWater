@@ -1,26 +1,74 @@
-#Project Logs 
+# Project Logs
 
-8/9/2026
-#Current API calls going in these amount of seconds. 
+## 2026-08-09 — API Latency & Caching
 
-Cache = small temporary storage space that holds data to access it faster in the future.
+### Problem
 
-Trying to wonder if I can get the time down by using some sort of cache or some way to only get the rest of the water fountains, if we went from 2km to 5km, if we can get only the 3km remaining to take time off from the current call. 
+The current API calls are taking a significant amount of time, which is creating noticeable delays in the UI when retrieving water-fountain locations.
 
+### Current API Flow
+
+```text
 Browser
-  └─ GET /api/water?lat&lon&radius
-        └─ Overpass water query
-              1) try overpass-api.de  (up to 12s)
-              2) if fail → overpass.kumi.systems (up to 12s)
-        └─ return spots  ← list/map show here
+└─ GET /api/water?lat&lon&radius
+   └─ Overpass water query
+      1. Try overpass-api.de (up to 12 seconds)
+      2. If it fails → overpass.kumi.systems (up to 12 seconds)
+   └─ Return water-fountain locations
+      └─ Results displayed on the list/map
 
-Then, when a spot is selected (incl. auto-nearest):
-  └─ GET /api/water/hint?lat&lon
-        └─ small Overpass around that spot (~120m)
-        └─ “Near …” fills in
+When a spot is selected (including auto-nearest):
 
-Going to try this short term cache. I want it to support the flow in the UI, as it's taking a lot of time to go in and make the call to the API. As this is an MVP at the moment, I will go ahead and go with this for now, and stored coverage over time. 
+└─ GET /api/water/hint?lat&lon
+   └─ Small Overpass query around the selected spot (~120m)
+   └─ "Near..." information is populated
+```
 
-TTL = Time to Live, or how long a cached result is considered valid until we throw it again and fetch again. 
+### Current Investigation
 
+I'm investigating ways to reduce the amount of time required to retrieve water-fountain data.
 
+One possibility is implementing a **cache**.
+
+**Cache:** A small temporary storage area that holds previously retrieved data so it can be accessed faster instead of making the same request again.
+
+I'm also considering whether the search radius can be handled more efficiently.
+
+For example:
+
+* User searches within 2 km.
+* User expands the search to 5 km.
+* Instead of making an entirely new request for the full 5 km, could the application retrieve only the additional 3 km of coverage?
+
+If this is feasible, it could reduce unnecessary API calls and improve response time.
+
+### Short-Term Decision
+
+For the current MVP, I am going to implement a **short-term cache**.
+
+The goal is to improve the UI flow by avoiding unnecessary calls to the Overpass API when the application already has recently retrieved data.
+
+Since this is still an MVP, I'm prioritizing a practical improvement that can be implemented quickly rather than designing a more complex caching or geographic-query system immediately.
+
+Over time, I can expand the cached coverage as users search larger areas.
+
+### TTL
+
+**TTL (Time to Live):** The amount of time a cached result is considered valid before it expires and the application retrieves fresh data.
+
+The TTL will allow the application to benefit from cached results while still periodically refreshing the data.
+
+### Next Steps
+
+* [ ] Implement short-term caching.
+* [ ] Determine an appropriate TTL.
+* [ ] Measure API response time before caching.
+* [ ] Measure API response time after caching.
+* [ ] Test repeated searches within the same area.
+* [ ] Test expanding the search radius.
+* [ ] Investigate whether existing 2 km coverage can be reused when expanding to 5 km.
+* [ ] Determine whether cached geographic coverage can be combined over time.
+
+### What I'm Learning
+
+The initial implementation focused on getting the functionality working. Now that the MVP is usable, I'm beginning to identify performance bottlenecks and evaluate how caching and smarter API usage can improve the user experience while reducing unnecessary external requests.
