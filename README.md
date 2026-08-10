@@ -28,6 +28,16 @@ API:
 
 Results are sorted by straight-line distance (haversine). Spots with OSM address tags show that immediately. Road/park hints (e.g. “Near Brickell Ave” or “In Bayfront Park”) load on select so the main search stays fast.
 
+## In-memory search cache
+
+Successful water searches are kept in a **tab session** cache (about 5 minutes):
+
+- Same area again → reuse cached spots (no Overpass)
+- Shrink radius (e.g. 5 km → 2 km) → filter the larger cached set
+- Expand radius (e.g. 2 km → 5 km) → new Overpass call if that larger disk isn’t cached yet
+
+The cache is cleared when you close the tab; it is not a shared database.
+
 ## Search radius
 
 Use the stepped slider in the bottom sheet to choose **1 / 2 / 5 / 10 km** (default **2 km**). Sliding left shrinks the search; sliding right expands it. There are no fractional stops between those values.
