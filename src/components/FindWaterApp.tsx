@@ -9,6 +9,11 @@ import type {
   WaterHintResponse,
   WaterSpot,
 } from "@/lib/types";
+import {
+  patchWaterCacheHint,
+  readWaterSearch,
+  rememberWaterSearch,
+} from "@/lib/waterCache";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -51,13 +56,28 @@ export default function FindWaterApp() {
     [spots, selectedId],
   );
 
+  const applySpots = useCallback((nextSpots: WaterSpot[], nextRadius: number) => {
+    setSpots(nextSpots);
+    setRadius(nextRadius);
+    setStatus({ kind: "ready" });
+    setSelectedId(nextSpots.length > 0 ? nextSpots[0].id : null);
+  }, []);
+
   const fetchWater = useCallback(
     async (latitude: number, longitude: number, searchRadius: number) => {
-      setStatus({ kind: "loading" });
       setSelectedId(null);
       setHintLoadingId(null);
       hintResolvedRef.current = new Set();
       hintAbortRef.current?.abort();
+
+      // Same cell + same/smaller radius within TTL → skip Overpass.
+      const cached = readWaterSearch(latitude, longitude, searchRadius);
+      if (cached) {
+        applySpots(cached, searchRadius);
+        return;
+      }
+
+      setStatus({ kind: "loading" });
       try {
         const res = await fetch(
           `/api/water?latitude=${latitude}&longitude=${longitude}&radius=${searchRadius}`,
@@ -66,12 +86,8 @@ export default function FindWaterApp() {
         if (!res.ok) {
           throw new Error(data.error ?? "Could not load water spots.");
         }
-        setSpots(data.spots);
-        setRadius(data.radius);
-        setStatus({ kind: "ready" });
-        if (data.spots.length > 0) {
-          setSelectedId(data.spots[0].id);
-        }
+        rememberWaterSearch(latitude, longitude, data.radius, data.spots);
+        applySpots(data.spots, data.radius);
       } catch (err) {
         setSpots([]);
         setStatus({
@@ -81,7 +97,7 @@ export default function FindWaterApp() {
         });
       }
     },
-    [],
+    [applySpots],
   );
 
   const locate = useCallback(() => {
@@ -163,6 +179,7 @@ export default function FindWaterApp() {
         }
         hintResolvedRef.current.add(spotId);
         if (data.locationHint) {
+          patchWaterCacheHint(spotId, data.locationHint);
           setSpots((prev) =>
             prev.map((s) =>
               s.id === spotId ? { ...s, locationHint: data.locationHint } : s,
