@@ -72,3 +72,23 @@ The TTL will allow the application to benefit from cached results while still pe
 ### What I'm Learning
 
 The initial implementation focused on getting the functionality working. Now that the MVP is usable, I'm beginning to identify performance bottlenecks and evaluate how caching and smarter API usage can improve the user experience while reducing unnecessary external requests.
+
+## 2026-08-23 - API Latency & Caching Testing 
+
+### What I am testing
+
+I am adding several tests for the MVP before deploying onto production. The tests focus on the following: 
+
+```text
+npm run check
+├── lint          → "Is the code valid?"
+├── test (31)     → "Does our logic do the right thing?"
+│   ├── distance      (4)  pure math used everywhere in the project
+│   ├── overpass      (9)  OSM → spots 
+│   ├── waterCache    (9)  session cache
+│   ├── /api/water    (5)  route + mocked Overpass
+│   └── /api/water/hint (4) route + mocked Overpass
+└── build         → "Does it compile for production?"
+```
+
+Once I have validated that these checks pass, I will go ahead and push and deploy onto production. My guess is that due to the API calls taking a good amount to respond, we will see a lot more issues once it is deployed onto Vercel. 
