@@ -55,6 +55,32 @@ OpenStreetMap coverage is uneven. Dense cities often have many mapped points; ot
 - Next.js (App Router) + TypeScript
 - Leaflet + react-leaflet (OSM tiles)
 - Overpass API (server route proxy)
+- Vitest (unit tests)
+
+## Tests (run before deploy)
+
+```bash
+npm run check
+```
+
+Runs lint, unit tests, and production build. Or run individually:
+
+```bash
+npm test          # unit tests once
+npm run test:watch
+npm run lint
+npm run build
+```
+
+Unit tests cover distance math, Overpass normalization, the in-memory cache, and API route validation (Overpass is mocked — no live network in CI).
+
+Optional live smoke scripts (need a running dev server for `smoke-api`):
+
+```bash
+node scripts/smoke-overpass.mjs
+npm run dev   # in another terminal
+node scripts/smoke-api.mjs
+```
 
 ## Later phases (not in MVP)
 
