@@ -74,6 +74,13 @@ npm run build
 
 Unit tests cover distance math, Overpass normalization, the in-memory cache, and API route validation (Overpass is mocked — no live network in CI).
 
+On pull requests, GitHub Actions runs:
+
+- **Test** — `npm run lint` + `npm test`
+- **Build** — `npm run build`
+
+Both must pass before merging (enable branch protection in GitHub if you want them required).
+
 Optional live smoke scripts (need a running dev server for `smoke-api`):
 
 ```bash
