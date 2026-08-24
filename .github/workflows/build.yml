@@ -3,11 +3,11 @@ name: Build
 on:
   pull_request:
     branches:
-      - cursor/findwater-mvp-web
+      - develop
       - main
   push:
     branches:
-      - cursor/findwater-mvp-web
+      - develop
       - main
 
 concurrency:
