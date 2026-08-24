@@ -74,12 +74,35 @@ npm run build
 
 Unit tests cover distance math, Overpass normalization, the in-memory cache, and API route validation (Overpass is mocked — no live network in CI).
 
-On pull requests, GitHub Actions runs:
+On pull requests into **`develop`** (or `main`), GitHub Actions runs:
 
 - **Test** — `npm run lint` + `npm test`
 - **Build** — `npm run build`
 
-Both must pass before merging (enable branch protection in GitHub if you want them required).
+Both should pass before merging. Protect `develop` in GitHub so they are required (steps below).
+
+## Branching
+
+| Branch | Role |
+|--------|------|
+| **`develop`** | Integration branch — open PRs here; protect it |
+| `main` | Optional production / release branch |
+| `cursor/…-edc6` | Feature branches |
+
+**Workflow:** create a feature branch off `develop` → open a PR into `develop` → CI (Test + Build) + Vercel preview → merge when green.
+
+### Protect `develop` (GitHub UI)
+
+1. Repo → **Settings → General → Default branch** → switch to **`develop`** (so new PRs / clones use it).
+2. **Settings → Branches → Add branch protection rule**
+   - Branch name pattern: `develop`
+   - ✅ Require a pull request before merging
+   - ✅ Require status checks to pass before merging
+     - Require: **Lint and unit tests**, **Production build** (names from the Actions jobs; may show as `Test` / `Build` until the first run)
+   - ✅ Do not allow bypassing the above settings (recommended)
+3. Save.
+
+Direct pushes to `develop` should then be blocked; changes go through PRs.
 
 Optional live smoke scripts (need a running dev server for `smoke-api`):
 
