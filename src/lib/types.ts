@@ -26,3 +26,29 @@ export type WaterHintResponse = {
 export type WaterApiError = {
   error: string;
 };
+
+export type PlaceResult = {
+  id: string;
+  name: string;
+  label: string;
+  latitude: number;
+  longitude: number;
+};
+
+export type PlaceSearchResponse = {
+  places: PlaceResult[];
+};
+
+export type PlaceApiError = {
+  error: string;
+};
+
+/** Raw Nominatim search JSON item. */
+export type NominatimSearchItem = {
+  place_id: number;
+  display_name: string;
+  lat: string;
+  lon: string;
+  name?: string;
+  type?: string;
+};
