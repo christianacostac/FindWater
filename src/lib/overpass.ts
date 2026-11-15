@@ -5,7 +5,9 @@ const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const CONTEXT_MATCH_METERS = 80;
 /** Small around-query for a single selected spot — cheaper than search-wide enrichment. */
 const HINT_QUERY_RADIUS_M = 120;
-const HINT_TIMEOUT_MS = 6_000;
+/** Per-attempt budget — room for one silent retry under the route timeout. */
+const HINT_ATTEMPT_TIMEOUT_MS = 3_500;
+const HINT_RETRY_DELAY_MS = 300;
 const ENDPOINT_TIMEOUT_MS = 12_000;
 
 /** Raw Overpass JSON shape — OSM uses `lat` / `lon` field names. */
@@ -260,29 +262,70 @@ async function postOverpass(
   throw lastError ?? new Error("Overpass request failed");
 }
 
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal?.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 /**
  * Nearby named road/park for one spot. Used on-demand when the user selects
  * a result — keeps the main water search to a single Overpass round trip.
+ *
+ * Soft-fails after one silent retry: returns `null` when Overpass is down/slow
+ * instead of throwing, so the spot list stays usable without a hint.
  */
 export async function fetchLocationHint(
   latitude: number,
   longitude: number,
   signal?: AbortSignal,
 ): Promise<string | null> {
-  const controller = new AbortController();
-  const onParentAbort = () => controller.abort();
-  signal?.addEventListener("abort", onParentAbort, { once: true });
-  const timer = setTimeout(() => controller.abort(), HINT_TIMEOUT_MS);
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+
+  const attempt = async (): Promise<string | null> => {
+    const controller = new AbortController();
+    const onParentAbort = () => controller.abort();
+    signal?.addEventListener("abort", onParentAbort, { once: true });
+    const timer = setTimeout(
+      () => controller.abort(),
+      HINT_ATTEMPT_TIMEOUT_MS,
+    );
+
+    try {
+      const elements = await postOverpass(
+        buildHintQuery(latitude, longitude),
+        controller.signal,
+      );
+      return nearestHint(latitude, longitude, parseNamedFeatures(elements));
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onParentAbort);
+    }
+  };
 
   try {
-    const elements = await postOverpass(
-      buildHintQuery(latitude, longitude),
-      controller.signal,
-    );
-    return nearestHint(latitude, longitude, parseNamedFeatures(elements));
-  } finally {
-    clearTimeout(timer);
-    signal?.removeEventListener("abort", onParentAbort);
+    return await attempt();
+  } catch {
+    if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+    try {
+      await sleep(HINT_RETRY_DELAY_MS, signal);
+      return await attempt();
+    } catch (retryErr) {
+      if (signal?.aborted || (retryErr instanceof Error && retryErr.name === "AbortError")) {
+        throw new DOMException("Aborted", "AbortError");
+      }
+      // Optional enrichment — never fail the selected-spot UX over a hint.
+      return null;
+    }
   }
 }
 

@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   addressHintFromTags,
   buildOverpassQuery,
+  fetchLocationHint,
   normalizeOverpassElements,
 } from "./overpass";
 
@@ -134,5 +135,72 @@ describe("normalizeOverpassElements", () => {
       centerLon,
     );
     expect(spots).toHaveLength(0);
+  });
+});
+
+describe("fetchLocationHint", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("returns a road hint on success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          elements: [
+            {
+              type: "way",
+              id: 1,
+              center: { lat: 25.7617, lon: -80.1918 },
+              tags: { highway: "residential", name: "Brickell Ave" },
+            },
+          ],
+        }),
+      }),
+    );
+
+    await expect(fetchLocationHint(25.7617, -80.1918)).resolves.toBe(
+      "Near Brickell Ave",
+    );
+  });
+
+  it("retries once then soft-fails to null when Overpass keeps failing", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 504,
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchLocationHint(35.2282832, -80.8266325)).resolves.toBeNull();
+    // First attempt hits both mirrors; retry hits both again.
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("succeeds on the silent retry after a first failure", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 504 })
+      .mockResolvedValueOnce({ ok: false, status: 500 })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          elements: [
+            {
+              type: "way",
+              id: 9,
+              center: { lat: 35.2282832, lon: -80.8266325 },
+              tags: { highway: "residential", name: "Campus Walk" },
+            },
+          ],
+        }),
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchLocationHint(35.2282832, -80.8266325)).resolves.toBe(
+      "Near Campus Walk",
+    );
   });
 });
