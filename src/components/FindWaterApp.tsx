@@ -1,10 +1,12 @@
 "use client";
 
+import PlaceSearch from "@/components/PlaceSearch";
 import ResultsSheet, {
   DEFAULT_RADIUS,
   type SheetSnap,
 } from "@/components/ResultsSheet";
 import type {
+  PlaceResult,
   WaterApiResponse,
   WaterHintResponse,
   WaterSpot,
@@ -202,6 +204,12 @@ export default function FindWaterApp() {
     };
   }, [selected]);
 
+  const onPlaceSelect = (place: PlaceResult) => {
+    setCenter({ latitude: place.latitude, longitude: place.longitude });
+    void fetchWater(place.latitude, place.longitude, radius);
+    setSheetSnap("mid");
+  };
+
   const onMapClick = (latitude: number, longitude: number) => {
     setCenter({ latitude, longitude });
     void fetchWater(latitude, longitude, radius);
@@ -259,32 +267,37 @@ export default function FindWaterApp() {
 
   return (
     <div className="relative flex h-dvh flex-col overflow-hidden">
-      <header className="absolute inset-x-0 top-0 z-[1000] flex items-start justify-between gap-3 p-4 pointer-events-none">
-        <div className="pointer-events-auto rounded-2xl bg-[var(--panel)]/95 px-4 py-3 shadow-[var(--shadow)] backdrop-blur-md">
-          <p className="font-[family-name:var(--font-display)] text-2xl leading-none tracking-tight text-[var(--brand)]">
-            FindWater
-          </p>
-          <p className="mt-1 text-xs text-[var(--muted)]">
-            Nearest free drinking water
-          </p>
+      <header className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-3 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
+        <div className="pointer-events-auto w-full">
+          <PlaceSearch disabled={isBusy} onSelectPlace={onPlaceSelect} />
         </div>
-        <div className="pointer-events-auto flex flex-col gap-2">
-          <button
-            type="button"
-            onClick={locate}
-            disabled={isBusy}
-            className="rounded-full bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white shadow-[var(--shadow)] transition hover:bg-[var(--brand-deep)] disabled:opacity-60"
-          >
-            Use my location
-          </button>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={isBusy || !center}
-            className="rounded-full bg-[var(--panel)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] shadow-[var(--shadow)] transition hover:bg-white disabled:opacity-60"
-          >
-            Refresh
-          </button>
+        <div className="flex items-start justify-between gap-3">
+          <div className="pointer-events-auto rounded-2xl bg-[var(--panel)]/95 px-4 py-3 shadow-[var(--shadow)] backdrop-blur-md">
+            <p className="font-[family-name:var(--font-display)] text-2xl leading-none tracking-tight text-[var(--brand)]">
+              FindWater
+            </p>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Nearest free drinking water
+            </p>
+          </div>
+          <div className="pointer-events-auto flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={locate}
+              disabled={isBusy}
+              className="rounded-full bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-white shadow-[var(--shadow)] transition hover:bg-[var(--brand-deep)] disabled:opacity-60"
+            >
+              Use my location
+            </button>
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={isBusy || !center}
+              className="rounded-full bg-[var(--panel)] px-4 py-2.5 text-sm font-medium text-[var(--ink)] shadow-[var(--shadow)] transition hover:bg-white disabled:opacity-60"
+            >
+              Refresh
+            </button>
+          </div>
         </div>
       </header>
 
@@ -303,7 +316,7 @@ export default function FindWaterApp() {
         />
 
         {(status.kind === "locating" || status.kind === "loading") && (
-          <div className="absolute inset-x-0 top-24 z-[900] flex justify-center px-4">
+          <div className="absolute inset-x-0 top-40 z-[900] flex justify-center px-4">
             <p className="rounded-full bg-[var(--panel)]/95 px-4 py-2 text-sm text-[var(--ink)] shadow-[var(--shadow)] backdrop-blur-md">
               {status.kind === "locating"
                 ? "Getting your location…"
@@ -313,15 +326,15 @@ export default function FindWaterApp() {
         )}
 
         {(status.kind === "denied" || status.kind === "error") && !center && (
-          <div className="absolute inset-x-4 top-28 z-[900] mx-auto max-w-md rounded-2xl bg-[var(--panel)] p-4 shadow-[var(--shadow)]">
+          <div className="absolute inset-x-4 top-44 z-[900] mx-auto max-w-md rounded-2xl bg-[var(--panel)] p-4 shadow-[var(--shadow)]">
             <p className="font-medium text-[var(--ink)]">
               {status.kind === "denied"
                 ? "Location permission needed"
                 : status.message}
             </p>
             <p className="mt-1 text-sm text-[var(--muted)]">
-              Tap anywhere on the map to pin a search point, or try downtown
-              Miami.
+              Search for a place above, tap the map to pin a spot, or try
+              downtown Miami.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button

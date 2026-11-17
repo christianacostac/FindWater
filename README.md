@@ -25,6 +25,9 @@ API:
 
 - `GET /api/water?latitude=…&longitude=…&radius=2000` — nearby water spots (single Overpass query)
 - `GET /api/water/hint?latitude=…&longitude=…` — “Near …” / “In …” hint for one spot (loaded when you select it)
+- `GET /api/places/search?q=…` — global place search (Nominatim, up to 5 suggestions)
+
+Use the **search bar at the top** to find any city or place worldwide; pick a result to search for water there.
 
 Results are sorted by straight-line distance (haversine). Spots with OSM address tags show that immediately. Road/park hints (e.g. “Near Brickell Ave” or “In Bayfront Park”) load on select so the main search stays fast.
 
