@@ -8,6 +8,17 @@ function parseNumber(value: string | null): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+function hintResponse(
+  latitude: number,
+  longitude: number,
+  locationHint: string | null,
+): NextResponse<WaterHintResponse> {
+  return NextResponse.json({
+    locationHint,
+    center: { latitude, longitude },
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
   const latitude = parseNumber(searchParams.get("latitude"));
@@ -33,33 +44,21 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(body, { status: 400 });
   }
 
+  const controller = new AbortController();
+  // Budget covers one Overpass attempt + one silent retry.
+  const timeout = setTimeout(() => controller.abort(), 9_000);
+
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8_000);
-
-    try {
-      const locationHint = await fetchLocationHint(
-        latitude,
-        longitude,
-        controller.signal,
-      );
-      const body: WaterHintResponse = {
-        locationHint,
-        center: { latitude, longitude },
-      };
-      return NextResponse.json(body);
-    } finally {
-      clearTimeout(timeout);
-    }
-  } catch (err) {
-    const message =
-      err instanceof Error && err.name === "AbortError"
-        ? "Location hint timed out."
-        : err instanceof Error
-          ? err.message
-          : "Failed to fetch location hint.";
-
-    const body: WaterApiError = { error: message };
-    return NextResponse.json(body, { status: 502 });
+    const locationHint = await fetchLocationHint(
+      latitude,
+      longitude,
+      controller.signal,
+    );
+    return hintResponse(latitude, longitude, locationHint);
+  } catch {
+    // Hints are optional. Overpass downtime must not 502 the selected spot.
+    return hintResponse(latitude, longitude, null);
+  } finally {
+    clearTimeout(timeout);
   }
 }

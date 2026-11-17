@@ -53,19 +53,35 @@ describe("GET /api/water/hint", () => {
       hintRequest({ latitude: "25.7617", longitude: "-80.1918" }),
     );
 
+    expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.locationHint).toBeNull();
   });
 
-  it("returns 502 when hint fetch fails", async () => {
+  it("soft-fails with 200 and null when Overpass fails", async () => {
     mockFetchLocationHint.mockRejectedValue(new Error("Overpass request failed"));
 
     const res = await GET(
       hintRequest({ latitude: "25.7617", longitude: "-80.1918" }),
     );
 
-    expect(res.status).toBe(502);
+    expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body.error).toMatch(/Overpass request failed/i);
+    expect(body.locationHint).toBeNull();
+    expect(body.center).toEqual({ latitude: 25.7617, longitude: -80.1918 });
+    expect(body.error).toBeUndefined();
+  });
+
+  it("soft-fails with 200 and null when the hint times out", async () => {
+    const abortError = new DOMException("Aborted", "AbortError");
+    mockFetchLocationHint.mockRejectedValue(abortError);
+
+    const res = await GET(
+      hintRequest({ latitude: "35.2282832", longitude: "-80.8266325" }),
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.locationHint).toBeNull();
   });
 });

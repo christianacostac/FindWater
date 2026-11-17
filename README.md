@@ -24,7 +24,7 @@ FindWater does not maintain its own fountain database for the MVP. It queries OS
 API:
 
 - `GET /api/water?latitude=…&longitude=…&radius=2000` — nearby water spots (single Overpass query)
-- `GET /api/water/hint?latitude=…&longitude=…` — “Near …” / “In …” hint for one spot (loaded when you select it)
+- `GET /api/water/hint?latitude=…&longitude=…` — “Near …” / “In …” hint for one spot (loaded when you select it; soft-fails to `null` if Overpass is down)
 - `GET /api/places/search?q=…` — global place search (Nominatim, up to 5 suggestions)
 
 Use the **search bar at the top** to find any city or place worldwide; pick a result to search for water there.
